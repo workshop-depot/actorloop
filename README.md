@@ -47,3 +47,6 @@ NewStarter().
 ```
 
 Which runs the actor just one time. `Starter` will take care of restarting the actor if there are any errors (or panics), the number of times that's specified. Or can restart it for ever if a negative value like `-1` is provided.
+
+### thoughts
+After spending some time with the concept, inside the context of Go, this seems to be a sufficient level of abstraction without turing into a destructive abstraction. Although it's possible to implement far more complex abstractions, including the full specification of the actor model. But inside most little services and cli apps, this tool would suffice.
