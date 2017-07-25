@@ -50,25 +50,21 @@ func (sa *sampleActor) add(n int64) {
 }
 
 func (sa *sampleActor) Loop(ctx context.Context) error {
-	for {
+	done := func() <-chan struct{} {
 		if ctx != nil {
-			select {
-			case <-ctx.Done():
-				return nil
-			case n := <-sa.numbers:
-				if n < 0 {
-					return ErrExit
-				}
-				atomic.AddInt64(&metric, n)
+			return ctx.Done()
+		}
+		return nil
+	}
+	for {
+		select {
+		case <-done():
+			return nil
+		case n := <-sa.numbers:
+			if n < 0 {
+				return ErrExit
 			}
-		} else {
-			select {
-			case n := <-sa.numbers:
-				if n < 0 {
-					return ErrExit
-				}
-				atomic.AddInt64(&metric, n)
-			}
+			atomic.AddInt64(&metric, n)
 		}
 	}
 }
