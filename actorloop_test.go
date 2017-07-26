@@ -73,7 +73,7 @@ func TestSimpleForm(t *testing.T) {
 	metric = 0
 	actor := newSampleActor()
 
-	NewStarter().
+	New().
 		Start(actor, 1)
 
 	lwg := &sync.WaitGroup{}
@@ -94,7 +94,7 @@ func TestMessaging(t *testing.T) {
 	metric = 0
 	actor := newSampleActor()
 
-	NewStarter().
+	New().
 		AddToGroup(wg).
 		WithContext(ctx).
 		EnsureStarted().
@@ -119,7 +119,7 @@ func TestContext(t *testing.T) {
 	lwg := &sync.WaitGroup{}
 
 	actor := newSampleActor()
-	NewStarter().
+	New().
 		AddToGroup(lwg).
 		WithContext(lctx).
 		EnsureStarted().
@@ -144,7 +144,7 @@ func TestActorFunc(t *testing.T) {
 		}
 	}
 
-	NewStarter().
+	New().
 		AddToGroup(wg).
 		WithContext(ctx).
 		EnsureStarted().
@@ -174,7 +174,7 @@ func TestError(t *testing.T) {
 		}
 	}
 
-	NewStarter().
+	New().
 		AddToGroup(lwg).
 		WithContext(ctx).
 		EnsureStarted().
@@ -207,7 +207,7 @@ func TestPanic(t *testing.T) {
 		}
 	}
 
-	NewStarter().
+	New().
 		AddToGroup(lwg).
 		WithContext(ctx).
 		EnsureStarted().
@@ -223,4 +223,91 @@ func TestPanic(t *testing.T) {
 
 	lwg.Wait()
 	assert.Equal(t, int64(90), atomic.LoadInt64(&metric))
+}
+
+func TestBefore(t *testing.T) {
+	metric = 0
+	actor := newSampleActor()
+
+	New().
+		Before(func() { atomic.AddInt64(&metric, 30) }).
+		Start(actor, 1)
+
+	lwg := &sync.WaitGroup{}
+	lwg.Add(1)
+	go func() {
+		defer lwg.Done()
+		actor.add(30)
+		actor.add(30)
+		actor.add(30)
+		actor.add(-1)
+	}()
+	lwg.Wait()
+
+	assert.Equal(t, int64(120), atomic.LoadInt64(&metric))
+}
+
+func TestAfter(t *testing.T) {
+	metric = 0
+	actor := newSampleActor()
+
+	lwg := &sync.WaitGroup{}
+
+	lwg.Add(1)
+	New().
+		After(func() {
+			defer lwg.Done()
+			atomic.AddInt64(&metric, 30)
+		}).
+		Start(actor, 1)
+
+	lwg.Add(1)
+	go func() {
+		defer lwg.Done()
+		actor.add(30)
+		actor.add(30)
+		actor.add(30)
+		actor.add(-1)
+	}()
+	lwg.Wait()
+
+	assert.Equal(t, int64(120), atomic.LoadInt64(&metric))
+}
+
+func TestAfterDeferred(t *testing.T) {
+	metric = 0
+	lwg := &sync.WaitGroup{}
+
+	numbers := make(chan int64)
+	var af ActorFunc = func(c context.Context) error {
+		select {
+		case <-c.Done():
+			return nil
+		case n := <-numbers:
+			atomic.AddInt64(&metric, n)
+			panic("SOME OTHER ERROR")
+		}
+	}
+
+	New().
+		AddToGroup(lwg).
+		WithContext(ctx).
+		EnsureStarted().
+		Before(func() { lwg.Add(1) }).
+		After(func() {
+			defer lwg.Done()
+			atomic.AddInt64(&metric, 30)
+		}, true).
+		Start(af, 3, time.Millisecond*10)
+
+	lwg.Add(1)
+	go func() {
+		defer lwg.Done()
+		numbers <- 30
+		numbers <- 30
+		numbers <- 30
+	}()
+
+	lwg.Wait()
+	assert.Equal(t, int64(180), atomic.LoadInt64(&metric))
 }

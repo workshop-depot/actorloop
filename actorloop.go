@@ -46,7 +46,7 @@ type Actor interface {
 	// handling channels and doing stuff. But it can be just a select statement,
 	// performing a one time job. Other methods of actor should pass messages to
 	// channels that got handled here instead of mutating actor's state directly.
-	// A Mailbox is a channel. The context is null if not provided in the Starter.
+	// A Mailbox is a channel. The context is null if not provided in the Looper.
 	Loop(context.Context) error
 }
 
@@ -60,38 +60,50 @@ func (af ActorFunc) Loop(ctx context.Context) error {
 }
 
 //-----------------------------------------------------------------------------
-// starter
+// looper
 
-// Starter starts an Actor, do not reuse
-type Starter struct {
+// Looper starts an Actor, do not reuse
+type Looper struct {
 	gutil goroutines.Go
 	ctx   context.Context
 	l     Logger
 }
 
-// NewStarter creates a new Starter
-func NewStarter() Starter { return Starter{} }
+// New creates a new Looper
+func New() Looper { return Looper{} }
 
 // AddToGroup adds the actor's goroutine to the provided *sync.WaitGroup
-func (st Starter) AddToGroup(wg *sync.WaitGroup) Starter {
+func (st Looper) AddToGroup(wg *sync.WaitGroup) Looper {
 	st.gutil = st.gutil.AddToGroup(wg)
 	return st
 }
 
 // EnsureStarted ensures that the actor's goroutine got started and then returns
-func (st Starter) EnsureStarted() Starter {
+func (st Looper) EnsureStarted() Looper {
 	st.gutil = st.gutil.EnsureStarted()
 	return st
 }
 
+// Before will be called before the goroutine func at the begining of the same goroutine
+func (st Looper) Before(before func()) Looper {
+	st.gutil = st.gutil.Before(before)
+	return st
+}
+
+// After will get called after the goroutine func, it can be deferred
+func (st Looper) After(after func(), deferred ...bool) Looper {
+	st.gutil = st.gutil.After(after, deferred...)
+	return st
+}
+
 // WithContext passes this context to the actor's Loop method
-func (st Starter) WithContext(ctx context.Context) Starter {
+func (st Looper) WithContext(ctx context.Context) Looper {
 	st.ctx = ctx
 	return st
 }
 
 // WithLogger uses this logger to log errors
-func (st Starter) WithLogger(l Logger) Starter {
+func (st Looper) WithLogger(l Logger) Looper {
 	st.l = l
 	return st
 }
@@ -99,7 +111,7 @@ func (st Starter) WithLogger(l Logger) Starter {
 // Start starts the actor, default value of period is one second. It restarts the actor
 // # intensity number of times. If intensity is negative (-1), the actor would get
 // restarted forever.
-func (st Starter) Start(
+func (st Looper) Start(
 	actor Actor,
 	intensity int,
 	period ...time.Duration) {
