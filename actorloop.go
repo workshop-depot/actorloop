@@ -69,43 +69,58 @@ type Looper struct {
 	l     Logger
 }
 
+// LooperOption .
+type LooperOption func(*Looper)
+
 // New creates a new Looper
-func New() Looper { return Looper{} }
+func New(opts ...LooperOption) Looper {
+	var res Looper
+	for _, opt := range opts {
+		opt(&res)
+	}
+	return res
+}
 
 // AddToGroup adds the actor's goroutine to the provided *sync.WaitGroup
-func (st Looper) AddToGroup(wg *sync.WaitGroup) Looper {
-	st.gutil = st.gutil.AddToGroup(wg)
-	return st
+func AddToGroup(wg *sync.WaitGroup) LooperOption {
+	return func(st *Looper) {
+		st.gutil = st.gutil.AddToGroup(wg)
+	}
 }
 
 // EnsureStarted ensures that the actor's goroutine got started and then returns
-func (st Looper) EnsureStarted() Looper {
-	st.gutil = st.gutil.EnsureStarted()
-	return st
+func EnsureStarted() LooperOption {
+	return func(st *Looper) {
+		st.gutil = st.gutil.EnsureStarted()
+	}
 }
 
-// Before will be called before the goroutine func at the begining of the same goroutine
-func (st Looper) Before(before func()) Looper {
-	st.gutil = st.gutil.Before(before)
-	return st
+// DoBefore will be called before the goroutine func at the begining of the same goroutine
+func DoBefore(before func()) LooperOption {
+	return func(st *Looper) {
+		st.gutil = st.gutil.Before(before)
+	}
 }
 
-// After will get called after the goroutine func, it can be deferred
-func (st Looper) After(after func(), deferred ...bool) Looper {
-	st.gutil = st.gutil.After(after, deferred...)
-	return st
+// DoAfter will get called after the goroutine func, it can be deferred
+func DoAfter(after func(), deferred ...bool) LooperOption {
+	return func(st *Looper) {
+		st.gutil = st.gutil.After(after, deferred...)
+	}
 }
 
 // WithContext passes this context to the actor's Loop method
-func (st Looper) WithContext(ctx context.Context) Looper {
-	st.ctx = ctx
-	return st
+func WithContext(ctx context.Context) LooperOption {
+	return func(st *Looper) {
+		st.ctx = ctx
+	}
 }
 
 // WithLogger uses this logger to log errors
-func (st Looper) WithLogger(l Logger) Looper {
-	st.l = l
-	return st
+func WithLogger(l Logger) LooperOption {
+	return func(st *Looper) {
+		st.l = l
+	}
 }
 
 // Start starts the actor, default value of period is one second. It restarts the actor

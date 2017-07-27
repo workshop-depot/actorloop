@@ -94,11 +94,11 @@ func TestMessaging(t *testing.T) {
 	metric = 0
 	actor := newSampleActor()
 
-	New().
-		AddToGroup(wg).
-		WithContext(ctx).
-		EnsureStarted().
-		WithLogger(LoggerFunc(log.Printf)).
+	New(
+		AddToGroup(wg),
+		WithContext(ctx),
+		EnsureStarted(),
+		WithLogger(LoggerFunc(log.Printf))).
 		Start(actor, 1)
 
 	go func() {
@@ -119,11 +119,11 @@ func TestContext(t *testing.T) {
 	lwg := &sync.WaitGroup{}
 
 	actor := newSampleActor()
-	New().
-		AddToGroup(lwg).
-		WithContext(lctx).
-		EnsureStarted().
-		WithLogger(LoggerFunc(log.Printf)).
+	New(
+		AddToGroup(lwg),
+		WithContext(lctx),
+		EnsureStarted(),
+		WithLogger(LoggerFunc(log.Printf))).
 		Start(actor, 1)
 
 	lwg.Wait()
@@ -144,11 +144,10 @@ func TestActorFunc(t *testing.T) {
 		}
 	}
 
-	New().
-		AddToGroup(wg).
-		WithContext(ctx).
-		EnsureStarted().
-		WithLogger(LoggerFunc(log.Printf)).
+	New(AddToGroup(wg),
+		WithContext(ctx),
+		EnsureStarted(),
+		WithLogger(LoggerFunc(log.Printf))).
 		Start(af, 1)
 
 	go func() {
@@ -174,10 +173,10 @@ func TestError(t *testing.T) {
 		}
 	}
 
-	New().
-		AddToGroup(lwg).
-		WithContext(ctx).
-		EnsureStarted().
+	New(
+		AddToGroup(lwg),
+		WithContext(ctx),
+		EnsureStarted()).
 		Start(af, 3, time.Millisecond*10)
 
 	lwg.Add(1)
@@ -207,10 +206,9 @@ func TestPanic(t *testing.T) {
 		}
 	}
 
-	New().
-		AddToGroup(lwg).
-		WithContext(ctx).
-		EnsureStarted().
+	New(AddToGroup(lwg),
+		WithContext(ctx),
+		EnsureStarted()).
 		Start(af, 3, time.Millisecond*10)
 
 	lwg.Add(1)
@@ -229,8 +227,8 @@ func TestBefore(t *testing.T) {
 	metric = 0
 	actor := newSampleActor()
 
-	New().
-		Before(func() { atomic.AddInt64(&metric, 30) }).
+	New(
+		DoBefore(func() { atomic.AddInt64(&metric, 30) })).
 		Start(actor, 1)
 
 	lwg := &sync.WaitGroup{}
@@ -254,11 +252,11 @@ func TestAfter(t *testing.T) {
 	lwg := &sync.WaitGroup{}
 
 	lwg.Add(1)
-	New().
-		After(func() {
+	New(
+		DoAfter(func() {
 			defer lwg.Done()
 			atomic.AddInt64(&metric, 30)
-		}).
+		})).
 		Start(actor, 1)
 
 	lwg.Add(1)
@@ -289,15 +287,14 @@ func TestAfterDeferred(t *testing.T) {
 		}
 	}
 
-	New().
-		AddToGroup(lwg).
-		WithContext(ctx).
-		EnsureStarted().
-		Before(func() { lwg.Add(1) }).
-		After(func() {
+	New(AddToGroup(lwg),
+		WithContext(ctx),
+		EnsureStarted(),
+		DoBefore(func() { lwg.Add(1) }),
+		DoAfter(func() {
 			defer lwg.Done()
 			atomic.AddInt64(&metric, 30)
-		}, true).
+		}, true)).
 		Start(af, 3, time.Millisecond*10)
 
 	lwg.Add(1)
